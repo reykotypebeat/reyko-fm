@@ -91,7 +91,7 @@ export default function ReykoFM() {
         {PARTICLES.map((p, i) => (
           <div
             key={i}
-            className="absolute h-1 w-1 rounded-full bg-lime-400/35 animate-pulse"
+            className="particle-dot h-1 w-1 rounded-full bg-lime-400/40"
             style={{
               top: p.top,
               left: p.left,
@@ -110,10 +110,7 @@ export default function ReykoFM() {
         {/* Header / Logo */}
         <div className="relative flex items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <div
-              className="h-10 w-10 rounded-full border border-lime-400/70 flex items-center justify-center text-xs tracking-[0.2em] uppercase bg-black/60 shadow-[0_0_25px_rgba(190,242,100,0.45)]"
-              style={{ animation: "spin 18s linear infinite" }} // slow rotate
-            >
+            <div className="h-10 w-10 rounded-full border border-lime-400/70 flex items-center justify-center text-xs tracking-[0.2em] uppercase bg-black/60 shadow-[0_0_25px_rgba(190,242,100,0.45)] animate-spin-slow">
               FM
             </div>
             <div>
@@ -126,11 +123,8 @@ export default function ReykoFM() {
             </div>
           </div>
 
-          <div
-            className="flex items-center gap-2 text-[10px] uppercase tracking-[0.2em] text-lime-400"
-            style={{ textShadow: "0 0 12px rgba(190,242,100,0.85)" }}
-          >
-            <span className="inline-flex h-2 w-2 rounded-full bg-lime-400 animate-pulse shadow-[0_0_15px_rgba(190,242,100,0.9)]" />
+          <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.2em] text-lime-400 live-glow">
+            <span className="inline-flex h-2 w-2 rounded-full bg-lime-400 animate-pulse live-dot" />
             Live
           </div>
         </div>
@@ -154,12 +148,11 @@ export default function ReykoFM() {
                 return (
                   <div
                     key={i}
-                    className="flex-1 bg-lime-400/80 origin-bottom animate-pulse"
+                    className="flex-1 bg-lime-400/80 origin-bottom waveform-bar"
                     style={{
                       transform: `scaleY(${scale})`,
                       animationDelay: `${delay}s`,
                       animationDuration: `${duration}s`,
-                      boxShadow: "0 0 16px rgba(190,242,100,0.45)",
                     }}
                   />
                 );
