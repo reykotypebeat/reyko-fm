@@ -27,20 +27,6 @@ body {
 
 /* === REYKO-FM CUSTOM ANIMATIONS & EFFECTS === */
 
-@keyframes spin-slow {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-/* not used now, but keeping in case you ever want it again */
-/* .animate-spin-slow {
-  animation: spin-slow 18s linear infinite;
-} */
-
 @keyframes particle-drift {
   0% {
     transform: translate3d(0, 0, 0) scale(1);
@@ -61,7 +47,7 @@ body {
   animation: particle-drift 26s ease-in-out infinite alternate;
 }
 
-/* waveform bars now driven by JS, just smooth the motion */
+/* waveform bars are driven by JS; this just smooths motion */
 .waveform-bar {
   transition: transform 0.12s linear, opacity 0.12s linear;
 }
