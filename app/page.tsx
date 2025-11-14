@@ -1,4 +1,5 @@
 "use client";
+
 import React, { useEffect, useRef, useState } from "react";
 
 // Simple demo playlist - replace these URLs with your real audio file URLs
@@ -23,13 +24,45 @@ const PLAYLIST = [
 
 export default function ReykoFM() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  // Web Audio bits for proper volume control on iOS
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const gainNodeRef = useRef<GainNode | null>(null);
+
   const [currentIndex, setCurrentIndex] = useState<number>(0);
   const [isTunedIn, setIsTunedIn] = useState<boolean>(false);
   const [volume, setVolume] = useState<number>(0.8);
 
+  // Create / connect Web Audio graph once, after user interaction
+  const initAudioGraph = async () => {
+    if (!audioRef.current) return;
+    if (audioContextRef.current) return; // already initialised
+
+    const AudioCtx =
+      (window as any).AudioContext || (window as any).webkitAudioContext;
+    const ctx = new AudioCtx();
+
+    const source = ctx.createMediaElementSource(audioRef.current);
+    const gain = ctx.createGain();
+    gain.gain.value = volume;
+
+    source.connect(gain);
+    gain.connect(ctx.destination);
+
+    audioContextRef.current = ctx;
+    gainNodeRef.current = gain;
+
+    try {
+      await ctx.resume();
+    } catch (err) {
+      console.error("AudioContext resume failed:", err);
+    }
+  };
+
   // Handle autoplay after user interaction (required by browsers)
-  const handleTuneIn = () => {
+  const handleTuneIn = async () => {
     setIsTunedIn(true);
+    await initAudioGraph();
   };
 
   // When tuned in or track index changes, update audio source and play
@@ -39,10 +72,13 @@ export default function ReykoFM() {
 
     const audio = audioRef.current;
     audio.src = PLAYLIST[currentIndex].url;
-    audio.volume = volume;
+    audio.volume = 1; // keep element at full volume, control via gain node
 
     const playAudio = async () => {
       try {
+        if (audioContextRef.current?.state === "suspended") {
+          await audioContextRef.current.resume();
+        }
         await audio.play();
       } catch (err) {
         console.error("Autoplay blocked:", err);
@@ -52,10 +88,11 @@ export default function ReykoFM() {
     playAudio();
   }, [isTunedIn, currentIndex]);
 
-  // Update volume when slider changes
+  // Update volume via Web Audio gain node (works on iOS)
   useEffect(() => {
-    if (!audioRef.current) return;
-    audioRef.current.volume = volume;
+    if (gainNodeRef.current) {
+      gainNodeRef.current.gain.value = volume;
+    }
   }, [volume]);
 
   // On track end, move to next track (looping)
@@ -154,7 +191,9 @@ export default function ReykoFM() {
                   max={1}
                   step={0.01}
                   value={volume}
-                  onChange={(e) => setVolume(parseFloat(e.target.value))}
+                  onChange={(e) =>
+                    setVolume(parseFloat(e.target.value || "0"))
+                  }
                   className="w-full"
                 />
               </div>
