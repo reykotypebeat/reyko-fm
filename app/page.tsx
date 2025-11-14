@@ -51,7 +51,7 @@ export default function ReykoFM() {
 
     const src = ctx.createMediaElementSource(audioRef.current);
     const analyser = ctx.createAnalyser();
-    analyser.fftSize = 128; // resolution of the analysis
+    analyser.fftSize = 128;
 
     src.connect(analyser);
     analyser.connect(ctx.destination);
@@ -74,17 +74,32 @@ export default function ReykoFM() {
         return;
       }
 
-      // Map analyser bins to our bars
       const step = Math.max(1, Math.floor(bufferLength / barCount));
 
+      // 1) Find max value this frame so we can normalise
+      let frameMax = 0;
+      const values: number[] = [];
+
+      for (let i = 0; i < barCount; i++) {
+        const idx = i * step;
+        const raw = dataArray[idx] ?? 0;
+        values[i] = raw;
+        if (raw > frameMax) frameMax = raw;
+      }
+
+      if (frameMax < 1) frameMax = 1;
+
+      // 2) Map to 0–1 based on relative loudness + gentle curve
       for (let i = 0; i < barCount; i++) {
         const bar = bars[i];
         if (!bar) continue;
 
-        const v = dataArray[i * step] / 255; // 0–1
-        const scale = 0.2 + v * 1.6; // min 0.2, max ~1.8
+        const norm = values[i] / frameMax; // 0–1 per frame
+        const shaped = Math.pow(norm, 1.3);
+
+        const scale = 0.25 + shaped * 1.5;
         bar.style.transform = `scaleY(${scale})`;
-        bar.style.opacity = (0.25 + v * 0.75).toString();
+        bar.style.opacity = (0.3 + shaped * 0.7).toString();
       }
 
       animationRef.current = requestAnimationFrame(render);
@@ -113,7 +128,6 @@ export default function ReykoFM() {
 
     const audio = audioRef.current;
     audio.src = PLAYLIST[currentIndex].url;
-    audio.volume = volume;
 
     const playAudio = async () => {
       try {
@@ -124,9 +138,9 @@ export default function ReykoFM() {
     };
 
     playAudio();
-  }, [isTunedIn, currentIndex, volume]);
+  }, [isTunedIn, currentIndex]);
 
-  // Update volume when slider changes
+  // Update volume when slider changes (no restart)
   useEffect(() => {
     if (!audioRef.current) return;
     audioRef.current.volume = volume;
