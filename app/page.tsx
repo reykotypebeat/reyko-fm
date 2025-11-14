@@ -63,47 +63,53 @@ export default function ReykoFM() {
     const dataArray = new Uint8Array(bufferLength);
 
     const render = () => {
-      if (!analyserRef.current) return;
+  if (!analyserRef.current) return;
 
-      analyserRef.current.getByteFrequencyData(dataArray);
+  analyserRef.current.getByteFrequencyData(dataArray);
 
-      const bars = barRefs.current;
-      const barCount = bars.length;
-      if (barCount === 0) {
-        animationRef.current = requestAnimationFrame(render);
-        return;
-      }
+  const bars = barRefs.current;
+  const barCount = bars.length;
+  if (barCount === 0) {
+    animationRef.current = requestAnimationFrame(render);
+    return;
+  }
 
-      const step = Math.max(1, Math.floor(bufferLength / barCount));
+  const step = Math.max(1, Math.floor(bufferLength / barCount));
 
-      // 1) Find max value this frame so we can normalise
-      let frameMax = 0;
-      const values: number[] = [];
+  // 1) Find max value this frame
+  let frameMax = 0;
+  const values: number[] = [];
 
-      for (let i = 0; i < barCount; i++) {
-        const idx = i * step;
-        const raw = dataArray[idx] ?? 0;
-        values[i] = raw;
-        if (raw > frameMax) frameMax = raw;
-      }
+  for (let i = 0; i < barCount; i++) {
+    const idx = i * step;
+    const raw = dataArray[idx] ?? 0;
+    values[i] = raw;
+    if (raw > frameMax) frameMax = raw;
+  }
 
-      if (frameMax < 1) frameMax = 1;
+  // 2) Make the "ceiling" higher so bars rarely hit 100%
+  //    (we normalise against a value > frameMax)
+  let frameMaxAdjusted = frameMax * 1.6; // raise the ceiling
+  if (frameMaxAdjusted < 1) frameMaxAdjusted = 1;
 
-      // 2) Map to 0–1 based on relative loudness + gentle curve
-      for (let i = 0; i < barCount; i++) {
-        const bar = bars[i];
-        if (!bar) continue;
+  for (let i = 0; i < barCount; i++) {
+    const bar = bars[i];
+    if (!bar) continue;
 
-        const norm = values[i] / frameMax; // 0–1 per frame
-        const shaped = Math.pow(norm, 1.3);
+    const rawNorm = values[i] / frameMaxAdjusted; // usually < 1
+    const norm = Math.min(rawNorm, 1); // clamp
 
-        const scale = 0.25 + shaped * 1.5;
-        bar.style.transform = `scaleY(${scale})`;
-        bar.style.opacity = (0.3 + shaped * 0.7).toString();
-      }
+    // Softer curve so we still see movement in mids
+    const shaped = Math.pow(norm, 1.1);
 
-      animationRef.current = requestAnimationFrame(render);
-    };
+    // Lower overall height so it never bricks at the top
+    const scale = 0.2 + shaped * 0.9; // max ~1.1x height
+    bar.style.transform = `scaleY(${scale})`;
+    bar.style.opacity = (0.25 + shaped * 0.7).toString();
+  }
+
+  animationRef.current = requestAnimationFrame(render);
+};
 
     ctx
       .resume()
