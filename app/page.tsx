@@ -33,9 +33,77 @@ export default function ReykoFM() {
   const [isTunedIn, setIsTunedIn] = useState<boolean>(false);
   const [volume, setVolume] = useState<number>(0.8);
 
+  // For audio-reactive waveform
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const analyserRef = useRef<AnalyserNode | null>(null);
+  const animationRef = useRef<number | null>(null);
+  const barRefs = useRef<HTMLDivElement[]>([]);
+
+  // Set up Web Audio analyser for reactive waveform
+  const setupAudioContext = () => {
+    if (typeof window === "undefined") return;
+    if (!audioRef.current) return;
+    if (audioContextRef.current) return; // already set
+
+    const AudioCtx =
+      window.AudioContext || (window as any).webkitAudioContext;
+    const ctx = new AudioCtx();
+
+    const src = ctx.createMediaElementSource(audioRef.current);
+    const analyser = ctx.createAnalyser();
+    analyser.fftSize = 128; // resolution of the analysis
+
+    src.connect(analyser);
+    analyser.connect(ctx.destination);
+
+    audioContextRef.current = ctx;
+    analyserRef.current = analyser;
+
+    const bufferLength = analyser.frequencyBinCount;
+    const dataArray = new Uint8Array(bufferLength);
+
+    const render = () => {
+      if (!analyserRef.current) return;
+
+      analyserRef.current.getByteFrequencyData(dataArray);
+
+      const bars = barRefs.current;
+      const barCount = bars.length;
+      if (barCount === 0) {
+        animationRef.current = requestAnimationFrame(render);
+        return;
+      }
+
+      // Map analyser bins to our bars
+      const step = Math.max(1, Math.floor(bufferLength / barCount));
+
+      for (let i = 0; i < barCount; i++) {
+        const bar = bars[i];
+        if (!bar) continue;
+
+        const v = dataArray[i * step] / 255; // 0–1
+        const scale = 0.2 + v * 1.6; // min 0.2, max ~1.8
+        bar.style.transform = `scaleY(${scale})`;
+        bar.style.opacity = (0.25 + v * 0.75).toString();
+      }
+
+      animationRef.current = requestAnimationFrame(render);
+    };
+
+    ctx
+      .resume()
+      .catch(() => {
+        // ignore resume errors
+      })
+      .finally(() => {
+        render();
+      });
+  };
+
   // Handle autoplay after user interaction (required by browsers)
   const handleTuneIn = () => {
     setIsTunedIn(true);
+    setupAudioContext();
   };
 
   // When tuned in or track index changes, update audio source and play
@@ -56,7 +124,7 @@ export default function ReykoFM() {
     };
 
     playAudio();
-  }, [isTunedIn, currentIndex]);
+  }, [isTunedIn, currentIndex, volume]);
 
   // Update volume when slider changes
   useEffect(() => {
@@ -73,6 +141,18 @@ export default function ReykoFM() {
   useEffect(() => {
     const randomIndex = Math.floor(Math.random() * PLAYLIST.length);
     setCurrentIndex(randomIndex);
+  }, []);
+
+  // Cleanup audio context + animation on unmount
+  useEffect(() => {
+    return () => {
+      if (animationRef.current) {
+        cancelAnimationFrame(animationRef.current);
+      }
+      if (audioContextRef.current) {
+        audioContextRef.current.close().catch(() => {});
+      }
+    };
   }, []);
 
   const currentTrack = PLAYLIST[currentIndex];
@@ -110,7 +190,7 @@ export default function ReykoFM() {
         {/* Header / Logo */}
         <div className="relative flex items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-full border border-lime-400/70 flex items-center justify-center text-xs tracking-[0.2em] uppercase bg-black/60 shadow-[0_0_25px_rgba(190,242,100,0.45)] animate-spin-slow">
+            <div className="h-10 w-10 rounded-full border border-lime-400/70 flex items-center justify-center text-xs tracking-[0.2em] uppercase bg-black/60 shadow-[0_0_25px_rgba(190,242,100,0.45)]">
               FM
             </div>
             <div>
@@ -139,24 +219,17 @@ export default function ReykoFM() {
           </button>
         ) : (
           <div className="flex flex-col gap-6">
-            {/* Fake waveform / visual */}
+            {/* Audio-reactive waveform */}
             <div className="h-24 w-full rounded-xl bg-zinc-900/80 overflow-hidden flex gap-[2px] border border-zinc-800/80">
-              {Array.from({ length: 64 }).map((_, i) => {
-                const scale = 0.4 + (i % 5) * 0.18;
-                const delay = (i % 8) * 0.12;
-                const duration = 1 + (i % 4) * 0.15;
-                return (
-                  <div
-                    key={i}
-                    className="flex-1 bg-lime-400/80 origin-bottom waveform-bar"
-                    style={{
-                      transform: `scaleY(${scale})`,
-                      animationDelay: `${delay}s`,
-                      animationDuration: `${duration}s`,
-                    }}
-                  />
-                );
-              })}
+              {Array.from({ length: 48 }).map((_, i) => (
+                <div
+                  key={i}
+                  ref={(el) => {
+                    if (el) barRefs.current[i] = el;
+                  }}
+                  className="flex-1 bg-lime-400/80 origin-bottom waveform-bar"
+                />
+              ))}
             </div>
 
             {/* Now playing */}
