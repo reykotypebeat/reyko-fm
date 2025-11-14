@@ -1,23 +1,167 @@
 "use client";
 import React, { useEffect, useRef, useState } from "react";
 
-// Simple demo playlist - replace these URLs with your real audio file URLs
+// Playlist with raw filenames, URLs are built safely in code
 const PLAYLIST = [
   {
-    title: "ARMS LENGTH v1",
-    url: "/audio/ARMS LENGTH v1.mp3",
+    title: "4 U (final master 20/02/25)",
+    file: "4 U (final master 20/02/25).wav",
   },
   {
-    title: "smth wrong w me 150bpm Fmin (cohen loops)",
-    url: "/audio/smth wrong w me 150bpm Fmin (cohen loops).mp3",
+    title: "ARMS LENGTH v1",
+    file: "ARMS LENGTH v1.mp3",
+  },
+  {
+    title: "around 4 ya [lofi house]",
+    file: "around 4 ya [lofi house].mp3",
+  },
+  {
+    title: "atmospheric brain tingles V1",
+    file: "atmospheric brain tingles V1.mp3",
+  },
+  {
+    title: "blood stained gums demo",
+    file: "blood stained gums demo.mp3",
+  },
+  {
+    title: "blurred days blur always V2",
+    file: "blurred days blur always V2.mp3",
+  },
+  {
+    title: "bone marrow v1",
+    file: "bone marrow v1.mp3",
+  },
+  {
+    title: "caught them flowers (v1)",
+    file: "caught them flowers (v1).mp3",
+  },
+  {
+    title: "choose [nolonger]",
+    file: "choose [nolonger].mp3",
+  },
+  {
+    title: "companionship",
+    file: "companionship.mp3",
+  },
+  {
+    title: "don't forget abt me v1",
+    file: "don't forget abt me v1.mp3",
+  },
+  {
+    title: "everywhere i go (72bpm bmin instrumental)",
+    file: "everywhere i go (72bpm bmin instrumental).mp3",
+  },
+  {
+    title: "fragility (piano composition)",
+    file: "fragility (piano composition).mp3",
   },
   {
     title: "HOLD ME CLOSE new hook idea",
-    url: "/audio/HOLD ME CLOSE new hook idea.mp3",
+    file: "HOLD ME CLOSE new hook idea.mp3",
+  },
+  {
+    title: "home (final)",
+    file: "home (final).wav",
+  },
+  {
+    title: "I WANT U v1",
+    file: "I WANT U v1.mp3",
+  },
+  {
+    title: "jazz beat???",
+    file: "jazz beat???.mp3",
+  },
+  {
+    title: "keep playin me V1",
+    file: "keep playin me V1.mp3",
+  },
+  {
+    title: "life i was given",
+    file: "life i was given.mp3",
+  },
+  {
+    title: "middlemist v1",
+    file: "middlemist v1.mp3",
+  },
+  {
+    title: "momentary [nolonger]",
+    file: "momentary [nolonger].mp3",
+  },
+  {
+    title: "MY PEACE – V2",
+    file: "MY PEACE – V2.wav",
+  },
+  {
+    title: "my peace sidechain hyperpop remix",
+    file: "my peace sidechain hyperpop remix.mp3",
   },
   {
     title: "never never let let go (dnb)",
-    url: "/audio/never never let let go (dnb).mp3",
+    file: "never never let let go (dnb).mp3",
+  },
+  {
+    title: "nolonger [beginning] FADE IN",
+    file: "nolonger [beginning] FADE IN.mp3",
+  },
+  {
+    title: "nolonger [middle] FADE IN",
+    file: "nolonger [middle] FADE IN.mp3",
+  },
+  {
+    title: "nothing comes free",
+    file: "nothing comes free.mp3",
+  },
+  {
+    title: "reyko zimmer atmos V1",
+    file: "reyko zimmer atmos V1.mp3",
+  },
+  {
+    title: "should've seen that coming",
+    file: "should've seen that coming.mp3",
+  },
+  {
+    title: "simple man",
+    file: "simple man.mp3",
+  },
+  {
+    title: "smth wrong w me 150bpm Fmin (cohen loops)",
+    file: "smth wrong w me 150bpm Fmin (cohen loops).mp3",
+  },
+  {
+    title: "some1 OG pitch",
+    file: "some1 OG pitch.mp3",
+  },
+  {
+    title: "starlight",
+    file: "starlight.wav",
+  },
+  {
+    title: "SYRUP 114bpm Ebmin v2",
+    file: "SYRUP 114bpm Ebmin v2.mp3",
+  },
+  {
+    title: "TOXIC (YNG X REYKO) v4",
+    file: "TOXIC (YNG X REYKO) v4.mp3",
+  },
+  {
+    title: "viced",
+    file: "viced.mp3",
+  },
+  {
+    title: "wake up (final)",
+    file: "wake up (final).wav",
+  },
+  {
+    title: "WATER V2",
+    file: "WATER V2.mp3",
+  },
+  {
+    title: "when the world stops spinning (final)",
+    file: "when the world stops spinning (final).wav",
+  },
+  {
+    title: "won't let u down [nolonger] v2",
+    file: "won't let u down [nolonger] v2.wav",
   },
 ];
 
@@ -39,11 +183,10 @@ export default function ReykoFM() {
   const animationRef = useRef<number | null>(null);
   const barRefs = useRef<HTMLDivElement[]>([]);
 
-  // Set up Web Audio analyser for reactive waveform
   const setupAudioContext = () => {
     if (typeof window === "undefined") return;
     if (!audioRef.current) return;
-    if (audioContextRef.current) return; // already set
+    if (audioContextRef.current) return;
 
     const AudioCtx =
       window.AudioContext || (window as any).webkitAudioContext;
@@ -63,77 +206,74 @@ export default function ReykoFM() {
     const dataArray = new Uint8Array(bufferLength);
 
     const render = () => {
-  if (!analyserRef.current) return;
+      if (!analyserRef.current) return;
 
-  analyserRef.current.getByteFrequencyData(dataArray);
+      analyserRef.current.getByteFrequencyData(dataArray);
 
-  const bars = barRefs.current;
-  const barCount = bars.length;
-  if (barCount === 0) {
-    animationRef.current = requestAnimationFrame(render);
-    return;
-  }
+      const bars = barRefs.current;
+      const barCount = bars.length;
+      if (barCount === 0) {
+        animationRef.current = requestAnimationFrame(render);
+        return;
+      }
 
-  const step = Math.max(1, Math.floor(bufferLength / barCount));
+      const step = Math.max(1, Math.floor(bufferLength / barCount));
 
-  // 1) Find max value this frame
-  let frameMax = 0;
-  const values: number[] = [];
+      // Find max value this frame
+      let frameMax = 0;
+      const values: number[] = [];
 
-  for (let i = 0; i < barCount; i++) {
-    const idx = i * step;
-    const raw = dataArray[idx] ?? 0;
-    values[i] = raw;
-    if (raw > frameMax) frameMax = raw;
-  }
+      for (let i = 0; i < barCount; i++) {
+        const idx = i * step;
+        const raw = dataArray[idx] ?? 0;
+        values[i] = raw;
+        if (raw > frameMax) frameMax = raw;
+      }
 
-  // 2) Make the "ceiling" higher so bars rarely hit 100%
-  //    (we normalise against a value > frameMax)
-  let frameMaxAdjusted = frameMax * 1.6; // raise the ceiling
-  if (frameMaxAdjusted < 1) frameMaxAdjusted = 1;
+      // Raise ceiling so it never bricks visually
+      let frameMaxAdjusted = frameMax * 1.6;
+      if (frameMaxAdjusted < 1) frameMaxAdjusted = 1;
 
-  for (let i = 0; i < barCount; i++) {
-    const bar = bars[i];
-    if (!bar) continue;
+      for (let i = 0; i < barCount; i++) {
+        const bar = bars[i];
+        if (!bar) continue;
 
-    const rawNorm = values[i] / frameMaxAdjusted; // usually < 1
-    const norm = Math.min(rawNorm, 1); // clamp
+        const rawNorm = values[i] / frameMaxAdjusted;
+        const norm = Math.min(rawNorm, 1);
+        const shaped = Math.pow(norm, 1.1);
 
-    // Softer curve so we still see movement in mids
-    const shaped = Math.pow(norm, 1.1);
+        const scale = 0.2 + shaped * 0.9;
+        bar.style.transform = `scaleY(${scale})`;
+        bar.style.opacity = (0.25 + shaped * 0.7).toString();
+      }
 
-    // Lower overall height so it never bricks at the top
-    const scale = 0.2 + shaped * 0.9; // max ~1.1x height
-    bar.style.transform = `scaleY(${scale})`;
-    bar.style.opacity = (0.25 + shaped * 0.7).toString();
-  }
-
-  animationRef.current = requestAnimationFrame(render);
-};
+      animationRef.current = requestAnimationFrame(render);
+    };
 
     ctx
       .resume()
-      .catch(() => {
-        // ignore resume errors
-      })
+      .catch(() => {})
       .finally(() => {
         render();
       });
   };
 
-  // Handle autoplay after user interaction (required by browsers)
   const handleTuneIn = () => {
     setIsTunedIn(true);
     setupAudioContext();
   };
 
-  // When tuned in or track index changes, update audio source and play
+  // Load & play track when tuned in or index changes
   useEffect(() => {
     if (!isTunedIn) return;
     if (!audioRef.current) return;
 
+    const track = PLAYLIST[currentIndex];
     const audio = audioRef.current;
-    audio.src = PLAYLIST[currentIndex].url;
+
+    // Build a safe URL from the raw filename
+    const encoded = encodeURIComponent(track.file);
+    audio.src = `/audio/${encoded}`;
 
     const playAudio = async () => {
       try {
@@ -146,29 +286,24 @@ export default function ReykoFM() {
     playAudio();
   }, [isTunedIn, currentIndex]);
 
-  // Update volume when slider changes (no restart)
+  // Volume without restarting audio
   useEffect(() => {
     if (!audioRef.current) return;
     audioRef.current.volume = volume;
   }, [volume]);
 
-  // On track end, move to next track (looping)
   const handleEnded = () => {
     setCurrentIndex((prev) => (prev + 1) % PLAYLIST.length);
   };
 
-  // Optional: randomize start track on first mount
   useEffect(() => {
     const randomIndex = Math.floor(Math.random() * PLAYLIST.length);
     setCurrentIndex(randomIndex);
   }, []);
 
-  // Cleanup audio context + animation on unmount
   useEffect(() => {
     return () => {
-      if (animationRef.current) {
-        cancelAnimationFrame(animationRef.current);
-      }
+      if (animationRef.current) cancelAnimationFrame(animationRef.current);
       if (audioContextRef.current) {
         audioContextRef.current.close().catch(() => {});
       }
@@ -204,10 +339,9 @@ export default function ReykoFM() {
       <audio ref={audioRef} onEnded={handleEnded} preload="auto" />
 
       <div className="relative w-full max-w-xl bg-zinc-900/70 border border-zinc-800/80 rounded-2xl shadow-[0_0_50px_rgba(22,163,74,0.35)] p-6 flex flex-col gap-6 backdrop-blur-sm">
-        {/* subtle inner glow border */}
         <div className="pointer-events-none absolute inset-0 rounded-2xl border border-lime-400/10" />
 
-        {/* Header / Logo */}
+        {/* Header */}
         <div className="relative flex items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <div className="h-10 w-10 rounded-full border border-lime-400/70 flex items-center justify-center text-xs tracking-[0.2em] uppercase bg-black/60 shadow-[0_0_25px_rgba(190,242,100,0.45)]">
@@ -239,7 +373,7 @@ export default function ReykoFM() {
           </button>
         ) : (
           <div className="flex flex-col gap-6">
-            {/* Audio-reactive waveform */}
+            {/* Waveform */}
             <div className="h-24 w-full rounded-xl bg-zinc-900/80 overflow-hidden flex gap-[2px] border border-zinc-800/80">
               {Array.from({ length: 48 }).map((_, i) => (
                 <div
@@ -265,7 +399,7 @@ export default function ReykoFM() {
               </div>
             </div>
 
-            {/* Controls row */}
+            {/* Controls */}
             <div className="flex items-center justify-between gap-4">
               <div className="flex flex-col gap-1 text-xs text-zinc-500 max-w-[55%]">
                 <span className="uppercase tracking-[0.2em] text-[10px]">
