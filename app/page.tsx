@@ -1,5 +1,4 @@
 "use client";
-
 import React, { useEffect, useRef, useState } from "react";
 
 // Simple demo playlist - replace these URLs with your real audio file URLs
@@ -24,45 +23,23 @@ const PLAYLIST = [
 
 export default function ReykoFM() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
-
-  // Web Audio bits for proper volume control on iOS
-  const audioContextRef = useRef<AudioContext | null>(null);
-  const gainNodeRef = useRef<GainNode | null>(null);
-
   const [currentIndex, setCurrentIndex] = useState<number>(0);
   const [isTunedIn, setIsTunedIn] = useState<boolean>(false);
   const [volume, setVolume] = useState<number>(0.8);
+  const [isIOS, setIsIOS] = useState(false);
 
-  // Create / connect Web Audio graph once, after user interaction
-  const initAudioGraph = async () => {
-    if (!audioRef.current) return;
-    if (audioContextRef.current) return; // already initialised
-
-    const AudioCtx =
-      (window as any).AudioContext || (window as any).webkitAudioContext;
-    const ctx = new AudioCtx();
-
-    const source = ctx.createMediaElementSource(audioRef.current);
-    const gain = ctx.createGain();
-    gain.gain.value = volume;
-
-    source.connect(gain);
-    gain.connect(ctx.destination);
-
-    audioContextRef.current = ctx;
-    gainNodeRef.current = gain;
-
-    try {
-      await ctx.resume();
-    } catch (err) {
-      console.error("AudioContext resume failed:", err);
+  // detect iOS so we can hide the fake volume slider there
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const ua = window.navigator.userAgent || "";
+    if (/iPhone|iPad|iPod/i.test(ua)) {
+      setIsIOS(true);
     }
-  };
+  }, []);
 
   // Handle autoplay after user interaction (required by browsers)
-  const handleTuneIn = async () => {
+  const handleTuneIn = () => {
     setIsTunedIn(true);
-    await initAudioGraph();
   };
 
   // When tuned in or track index changes, update audio source and play
@@ -72,13 +49,10 @@ export default function ReykoFM() {
 
     const audio = audioRef.current;
     audio.src = PLAYLIST[currentIndex].url;
-    audio.volume = 1; // keep element at full volume, control via gain node
+    audio.volume = volume;
 
     const playAudio = async () => {
       try {
-        if (audioContextRef.current?.state === "suspended") {
-          await audioContextRef.current.resume();
-        }
         await audio.play();
       } catch (err) {
         console.error("Autoplay blocked:", err);
@@ -88,11 +62,10 @@ export default function ReykoFM() {
     playAudio();
   }, [isTunedIn, currentIndex]);
 
-  // Update volume via Web Audio gain node (works on iOS)
+  // Update volume when slider changes (works on desktop)
   useEffect(() => {
-    if (gainNodeRef.current) {
-      gainNodeRef.current.gain.value = volume;
-    }
+    if (!audioRef.current) return;
+    audioRef.current.volume = volume;
   }, [volume]);
 
   // On track end, move to next track (looping)
@@ -181,22 +154,29 @@ export default function ReykoFM() {
                 <span>No pause, no skip. Just listen.</span>
               </div>
 
-              <div className="flex items-center gap-2 min-w-[160px]">
-                <span className="text-[10px] uppercase tracking-[0.2em] text-zinc-500">
-                  Volume
-                </span>
-                <input
-                  type="range"
-                  min={0}
-                  max={1}
-                  step={0.01}
-                  value={volume}
-                  onChange={(e) =>
-                    setVolume(parseFloat(e.target.value || "0"))
-                  }
-                  className="w-full"
-                />
-              </div>
+              {isIOS ? (
+                <div className="flex flex-col items-end text-[10px] text-zinc-500 gap-1">
+                  <span className="uppercase tracking-[0.2em]">Volume</span>
+                  <span className="text-[10px]">
+                    Use your iPhone volume buttons 🎧
+                  </span>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 min-w-[160px]">
+                  <span className="text-[10px] uppercase tracking-[0.2em] text-zinc-500">
+                    Volume
+                  </span>
+                  <input
+                    type="range"
+                    min={0}
+                    max={1}
+                    step={0.01}
+                    value={volume}
+                    onChange={(e) => setVolume(parseFloat(e.target.value))}
+                    className="w-full"
+                  />
+                </div>
+              )}
             </div>
           </div>
         )}
