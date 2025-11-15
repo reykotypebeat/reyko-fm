@@ -201,9 +201,16 @@ export default function ReykoFM() {
     if (!audioRef.current) return;
     if (audioContextRef.current) return;
 
+    console.log('[DEBUG] Setting up AudioContext:', { isIOS });
+
     const AudioCtx =
       window.AudioContext || (window as any).webkitAudioContext;
     const ctx = new AudioCtx();
+
+    console.log('[DEBUG] AudioContext created:', {
+      state: ctx.state,
+      sampleRate: ctx.sampleRate
+    });
 
     const src = ctx.createMediaElementSource(audioRef.current);
     const analyser = ctx.createAnalyser();
@@ -213,11 +220,13 @@ export default function ReykoFM() {
       // iOS: Only connect to analyser for visualization, NOT to destination
       // This allows native <audio> playback to continue in background
       src.connect(analyser);
+      console.log('[DEBUG] iOS: Connected source to analyser only (NO destination)');
       // DO NOT connect analyser to destination on iOS
     } else {
       // Desktop: Full Web Audio chain with audio output
       src.connect(analyser);
       analyser.connect(ctx.destination);
+      console.log('[DEBUG] Desktop: Connected source -> analyser -> destination');
     }
 
     audioContextRef.current = ctx;
@@ -280,7 +289,12 @@ export default function ReykoFM() {
 
     ctx
       .resume()
-      .catch(() => {})
+      .then(() => {
+        console.log('[DEBUG] AudioContext resumed successfully:', ctx.state);
+      })
+      .catch((err) => {
+        console.error('[DEBUG] AudioContext resume failed:', err);
+      })
       .finally(() => {
         render();
       });
@@ -339,9 +353,25 @@ export default function ReykoFM() {
 
     const playAudio = async () => {
       try {
+        console.log('[DEBUG] Attempting to play audio:', {
+          src: audio.src,
+          paused: audio.paused,
+          readyState: audio.readyState,
+          isIOS,
+          hasAudioContext: !!audioContextRef.current,
+          audioContextState: audioContextRef.current?.state
+        });
+        
         await audio.play();
+        
+        console.log('[DEBUG] Audio play() succeeded:', {
+          paused: audio.paused,
+          currentTime: audio.currentTime,
+          volume: audio.volume,
+          muted: audio.muted
+        });
       } catch (err) {
-        console.error("Autoplay blocked:", err);
+        console.error("[DEBUG] Autoplay blocked or failed:", err);
       }
     };
 
@@ -421,7 +451,16 @@ export default function ReykoFM() {
         ))}
       </div>
 
-      <audio ref={audioRef} onEnded={handleEnded} preload="auto" />
+      <audio
+        ref={audioRef}
+        onEnded={handleEnded}
+        preload="auto"
+        onLoadedMetadata={() => console.log('[DEBUG] Audio metadata loaded')}
+        onCanPlay={() => console.log('[DEBUG] Audio can play')}
+        onPlay={() => console.log('[DEBUG] Audio play event fired')}
+        onPause={() => console.log('[DEBUG] Audio pause event fired')}
+        onError={(e) => console.error('[DEBUG] Audio error:', e)}
+      />
 
       <div className="relative w-full max-w-xl bg-zinc-900/70 border border-zinc-800/80 rounded-2xl shadow-[0_0_50px_rgba(22,163,74,0.35)] p-6 flex flex-col gap-6 backdrop-blur-sm">
         <div className="pointer-events-none absolute inset-0 rounded-2xl border border-lime-400/10" />
