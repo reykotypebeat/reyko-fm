@@ -176,17 +176,23 @@ export default function ReykoFM() {
   const [currentIndex, setCurrentIndex] = useState<number>(0);
   const [isTunedIn, setIsTunedIn] = useState<boolean>(false);
   const [volume, setVolume] = useState<number>(0.8);
+  const [isIOS, setIsIOS] = useState<boolean>(false);
 
   // For audio-reactive waveform
   const audioContextRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
-  const gainNodeRef = useRef<GainNode | null>(null);
   const animationRef = useRef<number | null>(null);
   const barRefs = useRef<HTMLDivElement[]>([]);
 
   // For true shuffle (no repeats until all tracks played)
   const shuffledPlaylistRef = useRef<number[]>([]);
   const playedTracksRef = useRef<Set<number>>(new Set());
+
+  // Detect iOS on mount
+  useEffect(() => {
+    const iOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+    setIsIOS(iOS);
+  }, []);
 
   const setupAudioContext = () => {
     if (typeof window === "undefined") return;
@@ -198,21 +204,16 @@ export default function ReykoFM() {
     const ctx = new AudioCtx();
 
     const src = ctx.createMediaElementSource(audioRef.current);
-    const gainNode = ctx.createGain();
     const analyser = ctx.createAnalyser();
     analyser.fftSize = 128;
 
-    // Audio chain: audio -> source -> gain -> analyser -> destination
-    src.connect(gainNode);
-    gainNode.connect(analyser);
-    analyser.connect(ctx.destination);
-
-    // Set initial volume via GainNode (works on iOS)
-    gainNode.gain.value = volume;
+    // CRITICAL: Only connect to analyser for visualization
+    // Audio plays through <audio> element directly for iOS background playback
+    src.connect(analyser);
+    // DO NOT connect analyser to destination - this breaks iOS background audio
 
     audioContextRef.current = ctx;
     analyserRef.current = analyser;
-    gainNodeRef.current = gainNode;
 
     const bufferLength = analyser.frequencyBinCount;
     const dataArray = new Uint8Array(bufferLength);
@@ -332,11 +333,12 @@ export default function ReykoFM() {
     playAudio();
   }, [isTunedIn, currentIndex]);
 
-  // Volume control via GainNode (works on iOS)
+  // Volume control via HTMLAudioElement (desktop only, iOS uses hardware buttons)
   useEffect(() => {
-    if (!gainNodeRef.current) return;
-    gainNodeRef.current.gain.value = volume;
-  }, [volume]);
+    if (!audioRef.current) return;
+    if (isIOS) return; // iOS blocks programmatic volume control
+    audioRef.current.volume = volume;
+  }, [volume, isIOS]);
 
   const handleEnded = () => {
     const nextIndex = getNextTrackIndex();
@@ -474,20 +476,22 @@ export default function ReykoFM() {
                 <span>No pause, no skip. Just tune in and let it run.</span>
               </div>
 
-              <div className="flex items-center gap-2 min-w-[160px]">
-                <span className="text-[10px] uppercase tracking-[0.2em] text-zinc-500">
-                  Volume
-                </span>
-                <input
-                  type="range"
-                  min={0}
-                  max={1}
-                  step={0.01}
-                  value={volume}
-                  onChange={(e) => setVolume(parseFloat(e.target.value))}
-                  className="w-full accent-lime-400"
-                />
-              </div>
+              {!isIOS && (
+                <div className="flex items-center gap-2 min-w-[160px]">
+                  <span className="text-[10px] uppercase tracking-[0.2em] text-zinc-500">
+                    Volume
+                  </span>
+                  <input
+                    type="range"
+                    min={0}
+                    max={1}
+                    step={0.01}
+                    value={volume}
+                    onChange={(e) => setVolume(parseFloat(e.target.value))}
+                    className="w-full accent-lime-400"
+                  />
+                </div>
+              )}
             </div>
           </div>
         )}
