@@ -458,24 +458,18 @@ export default function ReykoFM() {
           </button>
         ) : (
           <div className="flex flex-col gap-6">
-            {/* Visualizer - iOS: Breathing Blob, Desktop: Audio-Reactive Bars */}
-            {isIOS ? (
-              <div className="h-24 w-full rounded-xl bg-zinc-900/80 overflow-hidden border border-zinc-800/80 relative">
-                <div className="breathing-blob" />
-              </div>
-            ) : (
-              <div className="h-24 w-full rounded-xl bg-zinc-900/80 overflow-hidden flex gap-[2px] border border-zinc-800/80">
-                {Array.from({ length: 48 }).map((_, i) => (
-                  <div
-                    key={i}
-                    ref={(el) => {
-                      if (el) barRefs.current[i] = el;
-                    }}
-                    className="flex-1 bg-lime-400/80 origin-bottom waveform-bar"
-                  />
-                ))}
-              </div>
-            )}
+            {/* Waveform */}
+            <div className="h-24 w-full rounded-xl bg-zinc-900/80 overflow-hidden flex gap-[2px] border border-zinc-800/80">
+              {Array.from({ length: 48 }).map((_, i) => (
+                <div
+                  key={i}
+                  ref={(el) => {
+                    if (el) barRefs.current[i] = el;
+                  }}
+                  className="flex-1 bg-lime-400/80 origin-bottom waveform-bar"
+                />
+              ))}
+            </div>
 
             {/* Now playing */}
             <div className="flex flex-col gap-1">
