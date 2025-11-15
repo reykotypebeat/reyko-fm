@@ -181,8 +181,10 @@ export default function ReykoFM() {
   // For audio-reactive waveform
   const audioContextRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
+  const sourceNodeRef = useRef<MediaElementAudioSourceNode | null>(null);
   const animationRef = useRef<number | null>(null);
   const barRefs = useRef<HTMLDivElement[]>([]);
+  const [isPageVisible, setIsPageVisible] = useState<boolean>(true);
 
   // For true shuffle (no repeats until all tracks played)
   const shuffledPlaylistRef = useRef<number[]>([]);
@@ -199,13 +201,6 @@ export default function ReykoFM() {
     if (!audioRef.current) return;
     if (audioContextRef.current) return;
 
-    // On iOS, skip Web Audio API entirely to allow background playback
-    // Audio will play through <audio> element directly
-    if (isIOS) {
-      console.log("iOS detected - skipping Web Audio API for background playback");
-      return;
-    }
-
     const AudioCtx =
       window.AudioContext || (window as any).webkitAudioContext;
     const ctx = new AudioCtx();
@@ -214,18 +209,32 @@ export default function ReykoFM() {
     const analyser = ctx.createAnalyser();
     analyser.fftSize = 128;
 
-    // Connect for both visualization and audio output
-    src.connect(analyser);
-    analyser.connect(ctx.destination);
+    if (isIOS) {
+      // iOS: Only connect to analyser for visualization, NOT to destination
+      // This allows native <audio> playback to continue in background
+      src.connect(analyser);
+      // DO NOT connect analyser to destination on iOS
+    } else {
+      // Desktop: Full Web Audio chain with audio output
+      src.connect(analyser);
+      analyser.connect(ctx.destination);
+    }
 
     audioContextRef.current = ctx;
     analyserRef.current = analyser;
+    sourceNodeRef.current = src;
 
     const bufferLength = analyser.frequencyBinCount;
     const dataArray = new Uint8Array(bufferLength);
 
     const render = () => {
       if (!analyserRef.current) return;
+
+      // On iOS, only update visualizer when page is visible
+      if (isIOS && !isPageVisible) {
+        animationRef.current = requestAnimationFrame(render);
+        return;
+      }
 
       analyserRef.current.getByteFrequencyData(dataArray);
 
@@ -357,17 +366,17 @@ export default function ReykoFM() {
     setCurrentIndex(firstIndex);
   }, []);
 
-  // Desktop: Resume AudioContext when page becomes visible
+  // Track page visibility for iOS visualizer
   useEffect(() => {
-    if (isIOS) return; // Skip on iOS - no Web Audio API used
-
     const handleVisibilityChange = () => {
-      if (
-        document.visibilityState === "visible" &&
-        audioContextRef.current &&
-        audioContextRef.current.state === "suspended"
-      ) {
-        audioContextRef.current.resume().catch(() => {});
+      const visible = document.visibilityState === "visible";
+      setIsPageVisible(visible);
+
+      // Resume AudioContext when page becomes visible
+      if (visible && audioContextRef.current) {
+        if (audioContextRef.current.state === "suspended") {
+          audioContextRef.current.resume().catch(() => {});
+        }
       }
     };
 
@@ -375,7 +384,7 @@ export default function ReykoFM() {
     return () => {
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, [isIOS]);
+  }, []);
 
   useEffect(() => {
     return () => {
@@ -449,18 +458,24 @@ export default function ReykoFM() {
           </button>
         ) : (
           <div className="flex flex-col gap-6">
-            {/* Waveform */}
-            <div className="h-24 w-full rounded-xl bg-zinc-900/80 overflow-hidden flex gap-[2px] border border-zinc-800/80">
-              {Array.from({ length: 48 }).map((_, i) => (
-                <div
-                  key={i}
-                  ref={(el) => {
-                    if (el) barRefs.current[i] = el;
-                  }}
-                  className="flex-1 bg-lime-400/80 origin-bottom waveform-bar"
-                />
-              ))}
-            </div>
+            {/* Visualizer - iOS: Breathing Blob, Desktop: Audio-Reactive Bars */}
+            {isIOS ? (
+              <div className="h-24 w-full rounded-xl bg-zinc-900/80 overflow-hidden border border-zinc-800/80 relative">
+                <div className="breathing-blob" />
+              </div>
+            ) : (
+              <div className="h-24 w-full rounded-xl bg-zinc-900/80 overflow-hidden flex gap-[2px] border border-zinc-800/80">
+                {Array.from({ length: 48 }).map((_, i) => (
+                  <div
+                    key={i}
+                    ref={(el) => {
+                      if (el) barRefs.current[i] = el;
+                    }}
+                    className="flex-1 bg-lime-400/80 origin-bottom waveform-bar"
+                  />
+                ))}
+              </div>
+            )}
 
             {/* Now playing */}
             <div className="flex flex-col gap-1">

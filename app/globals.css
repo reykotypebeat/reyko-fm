@@ -59,3 +59,79 @@ body {
 .live-dot {
   box-shadow: 0 0 15px rgba(190, 242, 100, 0.9);
 }
+
+/* === iOS BREATHING BLOB VISUALIZER === */
+
+@keyframes blob-breathe {
+  0%, 100% {
+    transform: scale(1) translate(-50%, -50%);
+    border-radius: 60% 40% 30% 70% / 60% 30% 70% 40%;
+  }
+  25% {
+    transform: scale(1.15) translate(-50%, -50%);
+    border-radius: 30% 60% 70% 40% / 50% 60% 30% 60%;
+  }
+  50% {
+    transform: scale(0.95) translate(-50%, -50%);
+    border-radius: 50% 60% 30% 60% / 30% 60% 70% 40%;
+  }
+  75% {
+    transform: scale(1.08) translate(-50%, -50%);
+    border-radius: 60% 40% 60% 30% / 70% 30% 60% 40%;
+  }
+}
+
+@keyframes blob-glow-pulse {
+  0%, 100% {
+    opacity: 0.6;
+    filter: blur(40px);
+  }
+  50% {
+    opacity: 0.85;
+    filter: blur(50px);
+  }
+}
+
+@keyframes blob-rotate {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+.breathing-blob {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 180px;
+  height: 180px;
+  background: radial-gradient(circle, rgba(190, 242, 100, 0.8) 0%, rgba(190, 242, 100, 0.4) 50%, rgba(190, 242, 100, 0.1) 100%);
+  animation: blob-breathe 8s ease-in-out infinite;
+  transform-origin: center center;
+}
+
+.breathing-blob::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 140%;
+  height: 140%;
+  background: radial-gradient(circle, rgba(190, 242, 100, 0.4) 0%, transparent 70%);
+  animation: blob-glow-pulse 4s ease-in-out infinite, blob-rotate 20s linear infinite;
+  transform: translate(-50%, -50%);
+}
+
+.breathing-blob::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 120%;
+  height: 120%;
+  background: radial-gradient(circle, rgba(190, 242, 100, 0.3) 0%, transparent 60%);
+  animation: blob-glow-pulse 3s ease-in-out infinite reverse, blob-rotate 15s linear infinite reverse;
+  transform: translate(-50%, -50%);
+}
