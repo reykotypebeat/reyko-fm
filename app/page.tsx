@@ -207,10 +207,10 @@ export default function ReykoFM() {
     const analyser = ctx.createAnalyser();
     analyser.fftSize = 128;
 
-    // CRITICAL: Only connect to analyser for visualization
-    // Audio plays through <audio> element directly for iOS background playback
+    // Connect for both visualization and audio output
+    // This is required - MediaElementSource takes over audio routing
     src.connect(analyser);
-    // DO NOT connect analyser to destination - this breaks iOS background audio
+    analyser.connect(ctx.destination);
 
     audioContextRef.current = ctx;
     analyserRef.current = analyser;
