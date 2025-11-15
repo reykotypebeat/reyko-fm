@@ -5,7 +5,7 @@ import React, { useEffect, useRef, useState } from "react";
 const PLAYLIST = [
   {
     title: "4 U (final master 20/02/25)",
-    file: "4 U (final master 20/02/25).wav",
+    file: "four_u.wav",
   },
   {
     title: "ARMS LENGTH v1",
@@ -180,8 +180,13 @@ export default function ReykoFM() {
   // For audio-reactive waveform
   const audioContextRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
+  const gainNodeRef = useRef<GainNode | null>(null);
   const animationRef = useRef<number | null>(null);
   const barRefs = useRef<HTMLDivElement[]>([]);
+
+  // For true shuffle (no repeats until all tracks played)
+  const shuffledPlaylistRef = useRef<number[]>([]);
+  const playedTracksRef = useRef<Set<number>>(new Set());
 
   const setupAudioContext = () => {
     if (typeof window === "undefined") return;
@@ -193,14 +198,21 @@ export default function ReykoFM() {
     const ctx = new AudioCtx();
 
     const src = ctx.createMediaElementSource(audioRef.current);
+    const gainNode = ctx.createGain();
     const analyser = ctx.createAnalyser();
     analyser.fftSize = 128;
 
-    src.connect(analyser);
+    // Audio chain: audio -> source -> gain -> analyser -> destination
+    src.connect(gainNode);
+    gainNode.connect(analyser);
     analyser.connect(ctx.destination);
+
+    // Set initial volume via GainNode (works on iOS)
+    gainNode.gain.value = volume;
 
     audioContextRef.current = ctx;
     analyserRef.current = analyser;
+    gainNodeRef.current = gainNode;
 
     const bufferLength = analyser.frequencyBinCount;
     const dataArray = new Uint8Array(bufferLength);
@@ -258,6 +270,40 @@ export default function ReykoFM() {
       });
   };
 
+  // Fisher-Yates shuffle algorithm
+  const shufflePlaylist = () => {
+    const indices = Array.from({ length: PLAYLIST.length }, (_, i) => i);
+    for (let i = indices.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [indices[i], indices[j]] = [indices[j], indices[i]];
+    }
+    return indices;
+  };
+
+  const getNextTrackIndex = () => {
+    // Initialize shuffle on first call
+    if (shuffledPlaylistRef.current.length === 0) {
+      shuffledPlaylistRef.current = shufflePlaylist();
+    }
+
+    // Find next unplayed track
+    const nextTrack = shuffledPlaylistRef.current.find(
+      (idx) => !playedTracksRef.current.has(idx)
+    );
+
+    if (nextTrack !== undefined) {
+      playedTracksRef.current.add(nextTrack);
+      return nextTrack;
+    }
+
+    // All tracks played - reshuffle and start over
+    playedTracksRef.current.clear();
+    shuffledPlaylistRef.current = shufflePlaylist();
+    const firstTrack = shuffledPlaylistRef.current[0];
+    playedTracksRef.current.add(firstTrack);
+    return firstTrack;
+  };
+
   const handleTuneIn = () => {
     setIsTunedIn(true);
     setupAudioContext();
@@ -286,19 +332,39 @@ export default function ReykoFM() {
     playAudio();
   }, [isTunedIn, currentIndex]);
 
-  // Volume without restarting audio
+  // Volume control via GainNode (works on iOS)
   useEffect(() => {
-    if (!audioRef.current) return;
-    audioRef.current.volume = volume;
+    if (!gainNodeRef.current) return;
+    gainNodeRef.current.gain.value = volume;
   }, [volume]);
 
   const handleEnded = () => {
-    setCurrentIndex((prev) => (prev + 1) % PLAYLIST.length);
+    const nextIndex = getNextTrackIndex();
+    setCurrentIndex(nextIndex);
   };
 
+  // Initialize with random track from shuffled playlist
   useEffect(() => {
-    const randomIndex = Math.floor(Math.random() * PLAYLIST.length);
-    setCurrentIndex(randomIndex);
+    const firstIndex = getNextTrackIndex();
+    setCurrentIndex(firstIndex);
+  }, []);
+
+  // iOS autoplay resilience - resume AudioContext when page becomes visible
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (
+        document.visibilityState === "visible" &&
+        audioContextRef.current &&
+        audioContextRef.current.state === "suspended"
+      ) {
+        audioContextRef.current.resume().catch(() => {});
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
   }, []);
 
   useEffect(() => {
