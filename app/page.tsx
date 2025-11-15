@@ -176,74 +176,49 @@ export default function ReykoFM() {
   const [currentIndex, setCurrentIndex] = useState<number>(0);
   const [isTunedIn, setIsTunedIn] = useState<boolean>(false);
   const [volume, setVolume] = useState<number>(0.8);
-  const [isIOS, setIsIOS] = useState<boolean>(false);
 
   // For audio-reactive waveform
   const audioContextRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
-  const sourceNodeRef = useRef<MediaElementAudioSourceNode | null>(null);
+  const gainNodeRef = useRef<GainNode | null>(null);
   const animationRef = useRef<number | null>(null);
   const barRefs = useRef<HTMLDivElement[]>([]);
-  const [isPageVisible, setIsPageVisible] = useState<boolean>(true);
 
   // For true shuffle (no repeats until all tracks played)
   const shuffledPlaylistRef = useRef<number[]>([]);
   const playedTracksRef = useRef<Set<number>>(new Set());
-
-  // Detect iOS on mount
-  useEffect(() => {
-    const iOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-    setIsIOS(iOS);
-  }, []);
 
   const setupAudioContext = () => {
     if (typeof window === "undefined") return;
     if (!audioRef.current) return;
     if (audioContextRef.current) return;
 
-    console.log('[DEBUG] Setting up AudioContext:', { isIOS });
-
     const AudioCtx =
       window.AudioContext || (window as any).webkitAudioContext;
     const ctx = new AudioCtx();
 
-    console.log('[DEBUG] AudioContext created:', {
-      state: ctx.state,
-      sampleRate: ctx.sampleRate
-    });
-
     const src = ctx.createMediaElementSource(audioRef.current);
+    const gainNode = ctx.createGain();
     const analyser = ctx.createAnalyser();
     analyser.fftSize = 128;
 
-    if (isIOS) {
-      // iOS: Only connect to analyser for visualization, NOT to destination
-      // This allows native <audio> playback to continue in background
-      src.connect(analyser);
-      console.log('[DEBUG] iOS: Connected source to analyser only (NO destination)');
-      // DO NOT connect analyser to destination on iOS
-    } else {
-      // Desktop: Full Web Audio chain with audio output
-      src.connect(analyser);
-      analyser.connect(ctx.destination);
-      console.log('[DEBUG] Desktop: Connected source -> analyser -> destination');
-    }
+    // Audio chain: audio -> source -> gain -> analyser -> destination
+    src.connect(gainNode);
+    gainNode.connect(analyser);
+    analyser.connect(ctx.destination);
+
+    // Set initial volume via GainNode (works on iOS)
+    gainNode.gain.value = volume;
 
     audioContextRef.current = ctx;
     analyserRef.current = analyser;
-    sourceNodeRef.current = src;
+    gainNodeRef.current = gainNode;
 
     const bufferLength = analyser.frequencyBinCount;
     const dataArray = new Uint8Array(bufferLength);
 
     const render = () => {
       if (!analyserRef.current) return;
-
-      // On iOS, only update visualizer when page is visible
-      if (isIOS && !isPageVisible) {
-        animationRef.current = requestAnimationFrame(render);
-        return;
-      }
 
       analyserRef.current.getByteFrequencyData(dataArray);
 
@@ -289,12 +264,7 @@ export default function ReykoFM() {
 
     ctx
       .resume()
-      .then(() => {
-        console.log('[DEBUG] AudioContext resumed successfully:', ctx.state);
-      })
-      .catch((err) => {
-        console.error('[DEBUG] AudioContext resume failed:', err);
-      })
+      .catch(() => {})
       .finally(() => {
         render();
       });
@@ -353,37 +323,20 @@ export default function ReykoFM() {
 
     const playAudio = async () => {
       try {
-        console.log('[DEBUG] Attempting to play audio:', {
-          src: audio.src,
-          paused: audio.paused,
-          readyState: audio.readyState,
-          isIOS,
-          hasAudioContext: !!audioContextRef.current,
-          audioContextState: audioContextRef.current?.state
-        });
-        
         await audio.play();
-        
-        console.log('[DEBUG] Audio play() succeeded:', {
-          paused: audio.paused,
-          currentTime: audio.currentTime,
-          volume: audio.volume,
-          muted: audio.muted
-        });
       } catch (err) {
-        console.error("[DEBUG] Autoplay blocked or failed:", err);
+        console.error("Autoplay blocked:", err);
       }
     };
 
     playAudio();
   }, [isTunedIn, currentIndex]);
 
-  // Volume control via HTMLAudioElement (desktop only, iOS uses hardware buttons)
+  // Volume control via GainNode (works on iOS)
   useEffect(() => {
-    if (!audioRef.current) return;
-    if (isIOS) return; // iOS blocks programmatic volume control
-    audioRef.current.volume = volume;
-  }, [volume, isIOS]);
+    if (!gainNodeRef.current) return;
+    gainNodeRef.current.gain.value = volume;
+  }, [volume]);
 
   const handleEnded = () => {
     const nextIndex = getNextTrackIndex();
@@ -396,17 +349,15 @@ export default function ReykoFM() {
     setCurrentIndex(firstIndex);
   }, []);
 
-  // Track page visibility for iOS visualizer
+  // iOS autoplay resilience - resume AudioContext when page becomes visible
   useEffect(() => {
     const handleVisibilityChange = () => {
-      const visible = document.visibilityState === "visible";
-      setIsPageVisible(visible);
-
-      // Resume AudioContext when page becomes visible
-      if (visible && audioContextRef.current) {
-        if (audioContextRef.current.state === "suspended") {
-          audioContextRef.current.resume().catch(() => {});
-        }
+      if (
+        document.visibilityState === "visible" &&
+        audioContextRef.current &&
+        audioContextRef.current.state === "suspended"
+      ) {
+        audioContextRef.current.resume().catch(() => {});
       }
     };
 
@@ -451,16 +402,7 @@ export default function ReykoFM() {
         ))}
       </div>
 
-      <audio
-        ref={audioRef}
-        onEnded={handleEnded}
-        preload="auto"
-        onLoadedMetadata={() => console.log('[DEBUG] Audio metadata loaded')}
-        onCanPlay={() => console.log('[DEBUG] Audio can play')}
-        onPlay={() => console.log('[DEBUG] Audio play event fired')}
-        onPause={() => console.log('[DEBUG] Audio pause event fired')}
-        onError={(e) => console.error('[DEBUG] Audio error:', e)}
-      />
+      <audio ref={audioRef} onEnded={handleEnded} preload="auto" />
 
       <div className="relative w-full max-w-xl bg-zinc-900/70 border border-zinc-800/80 rounded-2xl shadow-[0_0_50px_rgba(22,163,74,0.35)] p-6 flex flex-col gap-6 backdrop-blur-sm">
         <div className="pointer-events-none absolute inset-0 rounded-2xl border border-lime-400/10" />
@@ -532,22 +474,20 @@ export default function ReykoFM() {
                 <span>No pause, no skip. Just tune in and let it run.</span>
               </div>
 
-              {!isIOS && (
-                <div className="flex items-center gap-2 min-w-[160px]">
-                  <span className="text-[10px] uppercase tracking-[0.2em] text-zinc-500">
-                    Volume
-                  </span>
-                  <input
-                    type="range"
-                    min={0}
-                    max={1}
-                    step={0.01}
-                    value={volume}
-                    onChange={(e) => setVolume(parseFloat(e.target.value))}
-                    className="w-full accent-lime-400"
-                  />
-                </div>
-              )}
+              <div className="flex items-center gap-2 min-w-[160px]">
+                <span className="text-[10px] uppercase tracking-[0.2em] text-zinc-500">
+                  Volume
+                </span>
+                <input
+                  type="range"
+                  min={0}
+                  max={1}
+                  step={0.01}
+                  value={volume}
+                  onChange={(e) => setVolume(parseFloat(e.target.value))}
+                  className="w-full accent-lime-400"
+                />
+              </div>
             </div>
           </div>
         )}
