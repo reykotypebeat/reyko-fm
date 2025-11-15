@@ -309,6 +309,34 @@ export default function ReykoFM() {
     setupAudioContext();
   };
 
+  // Setup Media Session API for iOS background playback
+  const setupMediaSession = (track: typeof PLAYLIST[0]) => {
+    if ('mediaSession' in navigator) {
+      navigator.mediaSession.metadata = new MediaMetadata({
+        title: track.title,
+        artist: 'REYKO!',
+        album: 'Unreleased Demos',
+        artwork: [
+          { src: '/og-reyko-fm.png', sizes: '1200x630', type: 'image/png' },
+        ],
+      });
+
+      // Set up action handlers (even though we don't allow skip/pause, iOS requires them)
+      navigator.mediaSession.setActionHandler('play', () => {
+        audioRef.current?.play();
+      });
+      
+      navigator.mediaSession.setActionHandler('pause', () => {
+        // We don't allow pause, but iOS requires this handler
+        audioRef.current?.pause();
+      });
+
+      // Disable skip actions since we don't allow them
+      navigator.mediaSession.setActionHandler('previoustrack', null);
+      navigator.mediaSession.setActionHandler('nexttrack', null);
+    }
+  };
+
   // Load & play track when tuned in or index changes
   useEffect(() => {
     if (!isTunedIn) return;
@@ -320,6 +348,9 @@ export default function ReykoFM() {
     // Build a safe URL from the raw filename
     const encoded = encodeURIComponent(track.file);
     audio.src = `/audio/${encoded}`;
+
+    // Setup Media Session API for this track
+    setupMediaSession(track);
 
     const playAudio = async () => {
       try {
