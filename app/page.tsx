@@ -199,6 +199,13 @@ export default function ReykoFM() {
     if (!audioRef.current) return;
     if (audioContextRef.current) return;
 
+    // On iOS, skip Web Audio API entirely to allow background playback
+    // Audio will play through <audio> element directly
+    if (isIOS) {
+      console.log("iOS detected - skipping Web Audio API for background playback");
+      return;
+    }
+
     const AudioCtx =
       window.AudioContext || (window as any).webkitAudioContext;
     const ctx = new AudioCtx();
@@ -208,7 +215,6 @@ export default function ReykoFM() {
     analyser.fftSize = 128;
 
     // Connect for both visualization and audio output
-    // This is required - MediaElementSource takes over audio routing
     src.connect(analyser);
     analyser.connect(ctx.destination);
 
@@ -351,8 +357,10 @@ export default function ReykoFM() {
     setCurrentIndex(firstIndex);
   }, []);
 
-  // iOS autoplay resilience - resume AudioContext when page becomes visible
+  // Desktop: Resume AudioContext when page becomes visible
   useEffect(() => {
+    if (isIOS) return; // Skip on iOS - no Web Audio API used
+
     const handleVisibilityChange = () => {
       if (
         document.visibilityState === "visible" &&
@@ -367,7 +375,7 @@ export default function ReykoFM() {
     return () => {
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, []);
+  }, [isIOS]);
 
   useEffect(() => {
     return () => {
