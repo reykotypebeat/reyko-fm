@@ -171,27 +171,38 @@ const PARTICLES = Array.from({ length: 18 }, (_, i) => ({
   delay: `${(i % 6) * 0.7}s`,
 }));
 
+// Detect iOS devices
+const isIOS = () => {
+  if (typeof window === "undefined") return false;
+  return /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+};
+
 export default function ReykoFM() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [currentIndex, setCurrentIndex] = useState<number>(0);
   const [isTunedIn, setIsTunedIn] = useState<boolean>(false);
   const [volume, setVolume] = useState<number>(0.8);
+  const [isIOSDevice, setIsIOSDevice] = useState<boolean>(false);
 
-  // For audio-reactive waveform
+  // For desktop-only Web Audio volume control
   const audioContextRef = useRef<AudioContext | null>(null);
-  const analyserRef = useRef<AnalyserNode | null>(null);
   const gainNodeRef = useRef<GainNode | null>(null);
-  const animationRef = useRef<number | null>(null);
-  const barRefs = useRef<HTMLDivElement[]>([]);
 
   // For true shuffle (no repeats until all tracks played)
   const shuffledPlaylistRef = useRef<number[]>([]);
   const playedTracksRef = useRef<Set<number>>(new Set());
 
+  // Detect iOS on mount
+  useEffect(() => {
+    setIsIOSDevice(isIOS());
+  }, []);
+
   const setupAudioContext = () => {
     if (typeof window === "undefined") return;
     if (!audioRef.current) return;
     if (audioContextRef.current) return;
+    if (isIOSDevice) return; // Skip Web Audio on iOS
 
     const AudioCtx =
       window.AudioContext || (window as any).webkitAudioContext;
@@ -199,75 +210,18 @@ export default function ReykoFM() {
 
     const src = ctx.createMediaElementSource(audioRef.current);
     const gainNode = ctx.createGain();
-    const analyser = ctx.createAnalyser();
-    analyser.fftSize = 128;
 
-    // Audio chain: audio -> source -> gain -> analyser -> destination
+    // Audio chain: audio -> source -> gain -> destination
     src.connect(gainNode);
-    gainNode.connect(analyser);
-    analyser.connect(ctx.destination);
+    gainNode.connect(ctx.destination);
 
-    // Set initial volume via GainNode (works on iOS)
+    // Set initial volume via GainNode
     gainNode.gain.value = volume;
 
     audioContextRef.current = ctx;
-    analyserRef.current = analyser;
     gainNodeRef.current = gainNode;
 
-    const bufferLength = analyser.frequencyBinCount;
-    const dataArray = new Uint8Array(bufferLength);
-
-    const render = () => {
-      if (!analyserRef.current) return;
-
-      analyserRef.current.getByteFrequencyData(dataArray);
-
-      const bars = barRefs.current;
-      const barCount = bars.length;
-      if (barCount === 0) {
-        animationRef.current = requestAnimationFrame(render);
-        return;
-      }
-
-      const step = Math.max(1, Math.floor(bufferLength / barCount));
-
-      // Find max value this frame
-      let frameMax = 0;
-      const values: number[] = [];
-
-      for (let i = 0; i < barCount; i++) {
-        const idx = i * step;
-        const raw = dataArray[idx] ?? 0;
-        values[i] = raw;
-        if (raw > frameMax) frameMax = raw;
-      }
-
-      // Raise ceiling so it never bricks visually
-      let frameMaxAdjusted = frameMax * 1.6;
-      if (frameMaxAdjusted < 1) frameMaxAdjusted = 1;
-
-      for (let i = 0; i < barCount; i++) {
-        const bar = bars[i];
-        if (!bar) continue;
-
-        const rawNorm = values[i] / frameMaxAdjusted;
-        const norm = Math.min(rawNorm, 1);
-        const shaped = Math.pow(norm, 1.1);
-
-        const scale = 0.2 + shaped * 0.9;
-        bar.style.transform = `scaleY(${scale})`;
-        bar.style.opacity = (0.25 + shaped * 0.7).toString();
-      }
-
-      animationRef.current = requestAnimationFrame(render);
-    };
-
-    ctx
-      .resume()
-      .catch(() => {})
-      .finally(() => {
-        render();
-      });
+    ctx.resume().catch(() => {});
   };
 
   // Fisher-Yates shuffle algorithm
@@ -306,7 +260,9 @@ export default function ReykoFM() {
 
   const handleTuneIn = () => {
     setIsTunedIn(true);
-    setupAudioContext();
+    if (!isIOSDevice) {
+      setupAudioContext();
+    }
   };
 
   // Setup Media Session API for iOS background playback
@@ -363,11 +319,16 @@ export default function ReykoFM() {
     playAudio();
   }, [isTunedIn, currentIndex]);
 
-  // Volume control via GainNode (works on iOS)
+  // Volume control via GainNode (desktop only) or HTMLAudioElement (iOS)
   useEffect(() => {
-    if (!gainNodeRef.current) return;
-    gainNodeRef.current.gain.value = volume;
-  }, [volume]);
+    if (isIOSDevice && audioRef.current) {
+      // On iOS, use native audio element volume
+      audioRef.current.volume = volume;
+    } else if (gainNodeRef.current) {
+      // On desktop, use GainNode
+      gainNodeRef.current.gain.value = volume;
+    }
+  }, [volume, isIOSDevice]);
 
   const handleEnded = () => {
     const nextIndex = getNextTrackIndex();
@@ -380,8 +341,10 @@ export default function ReykoFM() {
     setCurrentIndex(firstIndex);
   }, []);
 
-  // iOS autoplay resilience - resume AudioContext when page becomes visible
+  // Desktop: resume AudioContext when page becomes visible
   useEffect(() => {
+    if (isIOSDevice) return;
+
     const handleVisibilityChange = () => {
       if (
         document.visibilityState === "visible" &&
@@ -396,11 +359,10 @@ export default function ReykoFM() {
     return () => {
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, []);
+  }, [isIOSDevice]);
 
   useEffect(() => {
     return () => {
-      if (animationRef.current) cancelAnimationFrame(animationRef.current);
       if (audioContextRef.current) {
         audioContextRef.current.close().catch(() => {});
       }
@@ -470,17 +432,12 @@ export default function ReykoFM() {
           </button>
         ) : (
           <div className="flex flex-col gap-6">
-            {/* Waveform */}
-            <div className="h-24 w-full rounded-xl bg-zinc-900/80 overflow-hidden flex gap-[2px] border border-zinc-800/80">
-              {Array.from({ length: 48 }).map((_, i) => (
-                <div
-                  key={i}
-                  ref={(el) => {
-                    if (el) barRefs.current[i] = el;
-                  }}
-                  className="flex-1 bg-lime-400/80 origin-bottom waveform-bar"
-                />
-              ))}
+            {/* Static neon visualizer bar */}
+            <div className="h-24 w-full rounded-xl bg-zinc-900/80 border border-zinc-800/80 overflow-hidden relative">
+              <div className="absolute inset-0 bg-gradient-to-r from-lime-400/20 via-lime-400/40 to-lime-400/20" />
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="h-1 w-[85%] bg-lime-400/90 rounded-full shadow-[0_0_20px_rgba(190,242,100,0.8)]" />
+              </div>
             </div>
 
             {/* Now playing */}
@@ -505,20 +462,26 @@ export default function ReykoFM() {
                 <span>No pause, no skip. Just tune in and let it run.</span>
               </div>
 
-              <div className="flex items-center gap-2 min-w-[160px]">
-                <span className="text-[10px] uppercase tracking-[0.2em] text-zinc-500">
-                  Volume
-                </span>
-                <input
-                  type="range"
-                  min={0}
-                  max={1}
-                  step={0.01}
-                  value={volume}
-                  onChange={(e) => setVolume(parseFloat(e.target.value))}
-                  className="w-full accent-lime-400"
-                />
-              </div>
+              {isIOSDevice ? (
+                <div className="flex items-center gap-2 text-xs text-zinc-500 italic">
+                  Use device volume on iPhone
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 min-w-[160px]">
+                  <span className="text-[10px] uppercase tracking-[0.2em] text-zinc-500">
+                    Volume
+                  </span>
+                  <input
+                    type="range"
+                    min={0}
+                    max={1}
+                    step={0.01}
+                    value={volume}
+                    onChange={(e) => setVolume(parseFloat(e.target.value))}
+                    className="w-full accent-lime-400"
+                  />
+                </div>
+              )}
             </div>
           </div>
         )}

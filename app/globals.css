@@ -47,11 +47,6 @@ body {
   animation: particle-drift 26s ease-in-out infinite alternate;
 }
 
-/* waveform bars are driven by JS; this just smooths motion */
-.waveform-bar {
-  transition: transform 0.12s linear, opacity 0.12s linear;
-}
-
 .live-glow {
   text-shadow: 0 0 12px rgba(190, 242, 100, 0.85);
 }
