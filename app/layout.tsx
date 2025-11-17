@@ -23,9 +23,9 @@ export const metadata: Metadata = {
     type: "website",
     images: [
       {
-        url: "/og-reyko-fm.png",
-        width: 1600,
-        height: 900,
+        url: "/desktop ouroboros green favicon 512x512.png",
+        width: 512,
+        height: 512,
         alt: "REYKO-FM",
       },
     ],
@@ -34,7 +34,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "REYKO-FM",
     description: "Unreleased REYKO! radio.",
-    images: ["/og-reyko-fm.png"],
+    images: ["/desktop ouroboros green favicon 512x512.png"],
   },
 };
 
