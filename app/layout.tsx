@@ -4,6 +4,17 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "REYKO-FM",
   description: "Unreleased REYKO! radio.",
+  icons: {
+    icon: [
+      { url: "/desktop ouroboros green favicon 512x512.png", sizes: "512x512", type: "image/png" },
+      { url: "/desktop ouroboros green favicon 512x512.png", sizes: "192x192", type: "image/png" },
+      { url: "/desktop ouroboros green favicon 512x512.png", sizes: "32x32", type: "image/png" },
+      { url: "/desktop ouroboros green favicon 512x512.png", sizes: "16x16", type: "image/png" },
+    ],
+    apple: [
+      { url: "/iphone ouroboros green favicon 512x512.png", sizes: "180x180", type: "image/png" },
+    ],
+  },
   openGraph: {
     title: "REYKO-FM",
     description: "Unreleased REYKO! radio.",
