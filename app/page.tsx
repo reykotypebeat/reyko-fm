@@ -185,9 +185,11 @@ export default function ReykoFM() {
   const [volume, setVolume] = useState<number>(0.8);
   const [isIOSDevice, setIsIOSDevice] = useState<boolean>(false);
 
-  // For desktop-only Web Audio volume control
+  // For desktop-only Web Audio volume control + analyser
   const audioContextRef = useRef<AudioContext | null>(null);
   const gainNodeRef = useRef<GainNode | null>(null);
+  const analyserRef = useRef<AnalyserNode | null>(null);
+  const animationFrameRef = useRef<number | null>(null);
 
   // For true shuffle (no repeats until all tracks played)
   const shuffledPlaylistRef = useRef<number[]>([]);
@@ -210,9 +212,15 @@ export default function ReykoFM() {
 
     const src = ctx.createMediaElementSource(audioRef.current);
     const gainNode = ctx.createGain();
+    const analyser = ctx.createAnalyser();
 
-    // Audio chain: audio -> source -> gain -> destination
-    src.connect(gainNode);
+    // Configure analyser for waveform visualization
+    analyser.fftSize = 64; // Small FFT for 32 frequency bins
+    analyser.smoothingTimeConstant = 0.8;
+
+    // Audio chain: audio -> source -> analyser -> gain -> destination
+    src.connect(analyser);
+    analyser.connect(gainNode);
     gainNode.connect(ctx.destination);
 
     // Set initial volume via GainNode
@@ -220,6 +228,7 @@ export default function ReykoFM() {
 
     audioContextRef.current = ctx;
     gainNodeRef.current = gainNode;
+    analyserRef.current = analyser;
 
     ctx.resume().catch(() => {});
   };
@@ -363,6 +372,9 @@ export default function ReykoFM() {
 
   useEffect(() => {
     return () => {
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+      }
       if (audioContextRef.current) {
         audioContextRef.current.close().catch(() => {});
       }
@@ -432,13 +444,17 @@ export default function ReykoFM() {
           </button>
         ) : (
           <div className="flex flex-col gap-6">
-            {/* Static neon visualizer bar */}
-            <div className="h-24 w-full rounded-xl bg-zinc-900/80 border border-zinc-800/80 overflow-hidden relative">
-              <div className="absolute inset-0 bg-gradient-to-r from-lime-400/20 via-lime-400/40 to-lime-400/20" />
-              <div className="absolute inset-0 flex items-center justify-center">
-                <div className="h-1 w-[85%] bg-lime-400/90 rounded-full shadow-[0_0_20px_rgba(190,242,100,0.8)]" />
+            {/* Audio visualizer - reactive on desktop, static on iOS */}
+            {isIOSDevice ? (
+              <div className="h-24 w-full rounded-xl bg-zinc-900/80 border border-zinc-800/80 overflow-hidden relative">
+                <div className="absolute inset-0 bg-gradient-to-r from-lime-400/20 via-lime-400/40 to-lime-400/20" />
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <div className="h-1 w-[85%] bg-lime-400/90 rounded-full shadow-[0_0_20px_rgba(190,242,100,0.8)]" />
+                </div>
               </div>
-            </div>
+            ) : (
+              <AudioVisualizer analyserRef={analyserRef} isTunedIn={isTunedIn} />
+            )}
 
             {/* Now playing */}
             <div className="flex flex-col gap-1">
@@ -492,6 +508,111 @@ export default function ReykoFM() {
           <span>REYKO! © {new Date().getFullYear()}</span>
         </div>
       </div>
+    </div>
+  );
+}
+
+// Desktop-only audio-reactive visualizer component
+function AudioVisualizer({
+  analyserRef,
+  isTunedIn,
+}: {
+  analyserRef: React.MutableRefObject<AnalyserNode | null>;
+  isTunedIn: boolean;
+}) {
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const animationFrameRef = useRef<number | null>(null);
+  const smoothedHeightsRef = useRef<number[]>([]);
+
+  useEffect(() => {
+    if (!isTunedIn || !analyserRef.current || !canvasRef.current) return;
+
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    const analyser = analyserRef.current;
+    const bufferLength = analyser.frequencyBinCount;
+    const dataArray = new Uint8Array(bufferLength);
+    const barCount = 32;
+
+    // Initialize smoothed heights array
+    if (smoothedHeightsRef.current.length === 0) {
+      smoothedHeightsRef.current = new Array(barCount).fill(0);
+    }
+
+    const draw = () => {
+      animationFrameRef.current = requestAnimationFrame(draw);
+
+      analyser.getByteFrequencyData(dataArray);
+
+      // Clear canvas
+      ctx.fillStyle = "rgb(24, 24, 27)"; // zinc-900
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      // Draw gradient background
+      const gradient = ctx.createLinearGradient(0, 0, canvas.width, 0);
+      gradient.addColorStop(0, "rgba(190, 242, 100, 0.2)");
+      gradient.addColorStop(0.5, "rgba(190, 242, 100, 0.4)");
+      gradient.addColorStop(1, "rgba(190, 242, 100, 0.2)");
+      ctx.fillStyle = gradient;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      // Draw frequency bars with soft scaling and smoothing
+      const barWidth = canvas.width / barCount;
+      const barGap = 2;
+      const maxHeightPercent = 0.65; // Ceiling clamp - never reach more than 65% height
+      const lerpFactor = 0.15; // Smoothing factor for bar transitions
+
+      for (let i = 0; i < barCount; i++) {
+        // Normalize to 0-1 range
+        const normalized = dataArray[i] / 255;
+        
+        // Apply soft power curve for dynamic range compression (avoid brickwall)
+        const curved = Math.pow(normalized, 0.7);
+        
+        // Apply ceiling clamp
+        const clamped = Math.min(curved, maxHeightPercent);
+        
+        // Calculate target height
+        const targetHeight = clamped * canvas.height;
+        
+        // Smooth transition using linear interpolation (lerp)
+        const currentHeight = smoothedHeightsRef.current[i];
+        const smoothedHeight = currentHeight + (targetHeight - currentHeight) * lerpFactor;
+        smoothedHeightsRef.current[i] = smoothedHeight;
+
+        const x = i * barWidth;
+        const y = canvas.height - smoothedHeight;
+
+        // Create glow effect
+        ctx.shadowBlur = 15;
+        ctx.shadowColor = "rgba(190, 242, 100, 0.8)";
+        ctx.fillStyle = "rgb(190, 242, 100)";
+        ctx.fillRect(x + barGap / 2, y, barWidth - barGap, smoothedHeight);
+      }
+
+      // Reset shadow for next frame
+      ctx.shadowBlur = 0;
+    };
+
+    draw();
+
+    return () => {
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+      }
+    };
+  }, [analyserRef, isTunedIn]);
+
+  return (
+    <div className="h-24 w-full rounded-xl bg-zinc-900/80 border border-zinc-800/80 overflow-hidden relative">
+      <canvas
+        ref={canvasRef}
+        width={800}
+        height={96}
+        className="w-full h-full"
+      />
     </div>
   );
 }
