@@ -13,6 +13,9 @@ export const metadata: Metadata = {
       { url: "/favicon-desktop.png", sizes: "32x32", type: "image/png" },
       { url: "/favicon-desktop.png", sizes: "16x16", type: "image/png" },
     ],
+    shortcut: [
+      { url: "/favicon-desktop.png", type: "image/png" },
+    ],
     apple: [
       { url: "/favicon-apple.png", sizes: "180x180", type: "image/png" },
     ],
