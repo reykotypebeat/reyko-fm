@@ -8,13 +8,13 @@ export const metadata: Metadata = {
   description: "Unreleased REYKO! radio.",
   icons: {
     icon: [
-      { url: "/desktop ouroboros green favicon 512x512.png", sizes: "512x512", type: "image/png" },
-      { url: "/desktop ouroboros green favicon 512x512.png", sizes: "192x192", type: "image/png" },
-      { url: "/desktop ouroboros green favicon 512x512.png", sizes: "32x32", type: "image/png" },
-      { url: "/desktop ouroboros green favicon 512x512.png", sizes: "16x16", type: "image/png" },
+      { url: "/favicon-desktop.png", sizes: "512x512", type: "image/png" },
+      { url: "/favicon-desktop.png", sizes: "192x192", type: "image/png" },
+      { url: "/favicon-desktop.png", sizes: "32x32", type: "image/png" },
+      { url: "/favicon-desktop.png", sizes: "16x16", type: "image/png" },
     ],
     apple: [
-      { url: "/iphone ouroboros green favicon 512x512.png", sizes: "180x180", type: "image/png" },
+      { url: "/favicon-apple.png", sizes: "180x180", type: "image/png" },
     ],
   },
   openGraph: {
@@ -25,7 +25,7 @@ export const metadata: Metadata = {
     type: "website",
     images: [
       {
-        url: "/desktop ouroboros green favicon 512x512.png",
+        url: "/favicon-desktop.png",
         width: 512,
         height: 512,
         alt: "REYKO-FM",
@@ -36,7 +36,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "REYKO-FM",
     description: "Unreleased REYKO! radio.",
-    images: ["/desktop ouroboros green favicon 512x512.png"],
+    images: ["/favicon-desktop.png"],
   },
 };
 
